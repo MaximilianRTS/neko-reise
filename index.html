@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#14112a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Japan-Abenteuer">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-192.png">
+<title>Japan-Abenteuer</title>
+<style>
+  html,body{margin:0;height:100%;background:#14112a;color:#f4ecd8;font:18px/1.4 ui-monospace,Menlo,Consolas,monospace}
+  .wrap{min-height:100%;display:flex;align-items:center;justify-content:center;padding:24px;box-sizing:border-box}
+  .box{max-width:380px;width:100%;background:#241e47;border:3px solid #f4ecd8;box-shadow:0 0 0 3px #0b0918,0 8px 0 3px #0b0918;padding:22px 18px;text-align:center}
+  img{width:96px;height:96px;image-rendering:pixelated}
+  h1{font-size:22px;margin:8px 0 4px;color:#f6c453}
+  p{font-size:15px;color:#a99fc4;margin:6px 0 14px}
+  input{width:100%;box-sizing:border-box;font:inherit;padding:10px 12px;background:#14112a;color:#fff;border:3px solid #f4ecd8;border-radius:0;outline:none}
+  button{margin-top:12px;width:100%;font:inherit;padding:10px;background:#e0434f;color:#fff;border:3px solid #fff;border-radius:0;box-shadow:0 4px 0 #0b0918;cursor:pointer}
+  label{display:flex;gap:8px;align-items:center;justify-content:center;font-size:14px;color:#a99fc4;margin-top:10px}
+  #msg{min-height:1.4em;font-size:15px;margin-top:10px;color:#ff8a93}
+  #off{font-size:13px;color:#4fc27d;margin-top:8px;min-height:1.2em}
+</style>
+</head>
+<body>
+<div class="wrap"><form class="box" id="f" autocomplete="off">
+  <img src="icon-192.png" alt="">
+  <h1>Japan-Abenteuer</h1>
+  <p>Privates Spiel – bitte Passwort eingeben.</p>
+  <input id="pw" type="password" placeholder="Passwort" autocapitalize="off" autocorrect="off" spellcheck="false">
+  <label><input type="checkbox" id="keep" checked style="width:auto"> Auf diesem Gerät merken</label>
+  <button type="submit" id="go">Starten ▶</button>
+  <div id="msg"></div>
+  <div id="off"></div>
+</form></div>
+<script>
+(function () {
+  var ITER = 250000;
+  var KEY = 'ja-pw';
+  var $ = function (id) { return document.getElementById(id); };
+  function msg(t) { $('msg').textContent = t || ''; }
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js').then(function () {
+      return navigator.serviceWorker.ready;
+    }).then(function () {
+      return caches.match('game.bin');
+    }).then(function (r) { if (r) $('off').textContent = '✓ Offline bereit – läuft auch im Flugmodus'; }).catch(function () {});
+  }
+  async function unlock(pw, remember) {
+    msg('Entschlüssele …');
+    try {
+      var res = await fetch('game.bin');
+      var buf = new Uint8Array(await res.arrayBuffer());
+      var salt = buf.slice(3, 19), iv = buf.slice(19, 31), ct = buf.slice(31);
+      var base = await crypto.subtle.importKey('raw', new TextEncoder().encode(pw), 'PBKDF2', false, ['deriveKey']);
+      var key = await crypto.subtle.deriveKey({ name: 'PBKDF2', salt: salt, iterations: ITER, hash: 'SHA-256' }, base,
+        { name: 'AES-GCM', length: 256 }, false, ['decrypt']);
+      var plain;
+      try { plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: iv }, key, ct); }
+      catch (e) { msg('Falsches Passwort.'); try { localStorage.removeItem(KEY); } catch (e2) {} return false; }
+      var html = await new Response(new Blob([plain]).stream().pipeThrough(new DecompressionStream('gzip'))).text();
+      try { if (remember) localStorage.setItem(KEY, pw); } catch (e) {}
+      document.open(); document.write(html); document.close();
+      return true;
+    } catch (e) {
+      msg('Fehler: ' + (e && e.message ? e.message : e) + ' – bitte einmal mit Internet öffnen.');
+      return false;
+    }
+  }
+  $('f').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var pw = $('pw').value.trim();
+    if (pw) unlock(pw, $('keep').checked);
+  });
+  var saved = null;
+  try { saved = localStorage.getItem(KEY); } catch (e) {}
+  if (saved) unlock(saved, true);
+})();
+</script>
+</body>
+</html>
