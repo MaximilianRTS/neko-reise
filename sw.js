@@ -1,5 +1,5 @@
 // Service Worker: cached das Spiel für den Offline-Betrieb
-const CACHE = 'japan-abenteuer-47963d01bc';
+const CACHE = 'japan-abenteuer-e0349e3af2';
 const FILES = ['./', './index.html', './game.bin', './manifest.json', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)).then(() => self.skipWaiting()));
